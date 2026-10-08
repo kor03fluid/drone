@@ -1,8 +1,10 @@
 """YOLOv8m 드론 탐지 학습 스크립트 (RTX 4060 8GB 기준).
 
 사용 예:
-    python train.py
-    python train.py --batch 4                # VRAM 부족(CUDA out of memory) 시
+    python check_dataset.py                  # 먼저 데이터 점검 + imgsz 추천
+    python train.py                          # 640px, batch는 VRAM에 맞춰 자동
+    python train.py --imgsz 960              # 작은 드론이 많을 때
+    python train.py --batch 8                # batch 직접 지정
     python train.py --cache ram              # RAM이 넉넉하면 데이터 로딩 가속
     python train.py --resume runs/detect/yolov8m_drone/weights/last.pt
 """
@@ -17,7 +19,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def batch_size(value):
-    """정수는 배치 크기, -1은 AutoBatch, 0~1 실수는 사용할 VRAM 비율."""
+    """정수는 배치 크기, -1은 AutoBatch(VRAM 60%), 0~1 실수는 AutoBatch가 쓸 VRAM 비율."""
     v = float(value)
     return int(v) if v.is_integer() else v
 
@@ -29,7 +31,8 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--patience", type=int, default=50, help="검증 성능이 이 epoch 수만큼 안 오르면 조기 종료")
     p.add_argument("--imgsz", type=int, default=640)
-    p.add_argument("--batch", type=batch_size, default=8, help="8GB VRAM + 640px 기준 8 (기본값)")
+    # imgsz를 바꿔도 VRAM 8GB를 넘지 않도록 실제 GPU에서 메모리를 재서 batch를 정함
+    p.add_argument("--batch", type=batch_size, default=-1, help="기본값 -1: VRAM의 60%%를 쓰도록 자동 결정")
     p.add_argument("--workers", type=int, default=4, help="데이터로더 프로세스 수")
     p.add_argument("--device", default="0", help="GPU 번호, CPU는 'cpu'")
     p.add_argument("--cache", choices=["none", "ram", "disk"], default="none", help="이미지 캐시 위치")
@@ -50,6 +53,22 @@ def check_gpu(device):
         )
     props = torch.cuda.get_device_properties(0)
     print(f"GPU: {props.name} ({props.total_memory / 1024**3:.1f} GB), PyTorch {torch.__version__}")
+
+
+def evaluate_test(trainer):
+    """data.yaml에 test 항목이 있으면 학습·모델 선택에 쓰지 않은 test 데이터로 최종 성능을 측정."""
+    if not trainer.data.get("test"):
+        return
+    print("\ntest 데이터로 최종 평가")
+    YOLO(trainer.best).val(
+        data=trainer.args.data,
+        split="test",
+        imgsz=trainer.args.imgsz,
+        batch=trainer.batch_size * 2,  # 학습 중 검증과 같은 크기
+        device=trainer.args.device,
+        project=str(trainer.save_dir.parent),
+        name=f"{trainer.save_dir.name}-test",
+    )
 
 
 def main():
@@ -83,6 +102,7 @@ def main():
             name=args.name,
         )
 
+    evaluate_test(model.trainer)
     print(f"\n학습 완료. best 가중치: {model.trainer.best}")
 
 

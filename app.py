@@ -1,5 +1,6 @@
 """드론 탐지 Streamlit 데모. 실행: streamlit run app.py"""
 
+from collections import Counter
 from pathlib import Path
 
 import streamlit as st
@@ -36,5 +37,7 @@ uploaded_file = st.file_uploader("드론 이미지를 업로드하세요", type=
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
     r = model.predict(image, conf=conf)[0]
+    counts = Counter(r.names[int(c)] for c in r.boxes.cls)
+    caption = ", ".join(f"{name} {n}개" for name, n in counts.items()) or "탐지된 드론 없음"
     # plot()은 OpenCV 형식(BGR) 배열을 반환
-    st.image(r.plot(), channels="BGR", caption=f"드론 {len(r.boxes)}개 탐지")
+    st.image(r.plot(), channels="BGR", caption=caption)
