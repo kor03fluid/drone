@@ -1,0 +1,9 @@
+# 드론 탐지 데이터셋 설정 (클래스는 기존 best.pt 학습 때와 동일)
+# path 를 생략했으므로 아래 경로는 이 파일이 있는 폴더 기준으로 찾습니다.
+# 각 images/ 폴더 옆에 같은 이름의 YOLO 형식 라벨(.txt)이 담긴 labels/ 폴더가 있어야 합니다.
+train: dataset/train/images
+val: dataset/valid/images
+
+names:
+  0: 회전익
+  1: 고정익

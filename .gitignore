@@ -1,0 +1,4 @@
+runs/
+dataset/
+yolo*.pt
+__pycache__/
